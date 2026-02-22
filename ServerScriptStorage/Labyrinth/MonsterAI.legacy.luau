@@ -5,11 +5,11 @@ local Players = game:GetService("Players")
 local MazeConfig = require(script.Parent.MazeConfig)
 
 -- Configuration
-local WANDER_SPEED = 8
-local CHASE_SPEED = 18
-local SIGHT_RANGE = 60
-local SIGHT_ANGLE = 90
-local CHASE_COOLDOWN = 3
+local WANDER_SPEED = 5 -- Slower wandering
+local CHASE_SPEED = 12  -- Slower chasing
+local SIGHT_RANGE = 70
+local SIGHT_ANGLE = 100
+local CHASE_COOLDOWN = 4
 local REACHED_THRESHOLD = 5
 
 -----------------------------------------------------------
@@ -29,7 +29,6 @@ local function getOrCreateMonster()
 		model.PrimaryPart = part
 		monster = model
 	elseif not monster then
-		-- Try to find a part named "Cube" to turn into the monster
 		local cube = workspace:FindFirstChild("Cube")
 		if cube and cube:IsA("BasePart") then
 			local model = Instance.new("Model")
@@ -40,16 +39,15 @@ local function getOrCreateMonster()
 			model.PrimaryPart = cube
 			monster = model
 		else
-			-- Final fallback: Create a cube if nothing exists
 			warn("Monster part not found. Creating a temporary one.")
 			local model = Instance.new("Model")
 			model.Name = "Monster"
 			model.Parent = workspace
 			local part = Instance.new("Part")
 			part.Name = "HumanoidRootPart"
-			part.Size = Vector3.new(12, 12, 12)
-			part.Position = Vector3.new(0, 10, 0)
-			part.Color = Color3.fromRGB(200, 50, 50)
+			part.Size = Vector3.new(12.5, 50, 12.5) -- MASSIVE (Very Tall)
+			part.Position = Vector3.new(0, 4, 0)
+			part.Color = Color3.fromRGB(30, 30, 30) -- Darker body
 			part.Parent = model
 			model.PrimaryPart = part
 			monster = model
@@ -63,16 +61,23 @@ local function getOrCreateMonster()
 		humanoid.Parent = monster
 	end
 	
-	-- Ensure monster is collisionable and doesn't fall through floor
-	local hrp = monster:FindFirstChild("HumanoidRootPart")
+	-- Setup the HumanoidRootPart
+	local hrp = monster.PrimaryPart
 	if hrp then
 		hrp.CanCollide = true
 		hrp.Anchored = false
-		-- Set size smaller than corridors (13) to avoid getting stuck
-		if hrp.Size.X >= 13 then
-			hrp.Size = Vector3.new(11, 11, 11)
-		end
+		-- 25 studs is tall but manageable (matching wall height)
+		hrp.Size = Vector3.new(12.5, 10, 12.5) 
+		
+		-- MOVEMENT FIX: Make it massless so the Humanoid can move this giant part easily
+		hrp.Massless = true
+		hrp.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0.3, 0.5)
 	end
+
+	-- GROUNDING FIX: 
+	-- HipHeight 0 means the bottom of the part touches the ground
+	humanoid.HipHeight = 0 
+	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 
 	return monster
 end
@@ -88,8 +93,8 @@ local lastSeenTime = 0
 
 -- Pathfinding setup (Agent info)
 local path = PathfindingService:CreatePath({
-	AgentRadius = 5.5, -- Half of our monster size (11) plus a little buffer
-	AgentHeight = 11,
+	AgentRadius = 4, 
+	AgentHeight = 25,
 	AgentCanJump = false,
 })
 
@@ -110,11 +115,11 @@ local centerPosition = getLabyrinthCenter()
 local function getPosFromGrid(x, z)
 	local xPos = centerPosition.X + offset + (x - 1) * centerSpacing
 	local zPos = centerPosition.Z + offset + (z - 1) * centerSpacing
-	-- Use the monster's current Y or the labyrinth center's Y
-	return Vector3.new(xPos, centerPosition.Y + 6, zPos)
+	-- Center of a 25-stud tall part is 12.5 up
+	return Vector3.new(xPos, centerPosition.Y + 12.5, zPos) 
 end
 
--- Pre-calculate walkable cells from MazeConfig
+-- Pre-calculate walkable cells
 local walkableCells = {}
 for x = 1, GRID_SIZE do
 	for z = 1, GRID_SIZE do
@@ -191,7 +196,7 @@ local function followPathInternal(targetPos)
 		humanoid:MoveTo(waypoint.Position)
 		
 		local timeout = 0
-		while (hrp.Position - waypoint.Position).Magnitude > REACHED_THRESHOLD and timeout < 30 do
+		while (hrp.Position - waypoint.Position).Magnitude > REACHED_THRESHOLD and timeout < 35 do
 			task.wait(0.1)
 			timeout = timeout + 1
 			spotted = findVisibleTarget()
@@ -247,5 +252,6 @@ task.spawn(function()
 	end
 end)
 
-print("Monster AI Initialized - Setup complete, wandering started.")
+print("Monster AI Initialized - Big & Slow mode active.")
+
 
